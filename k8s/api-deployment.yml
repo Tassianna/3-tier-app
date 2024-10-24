@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      initContainers:
+      - name: wait-for-first
+        image: busybox
+        command: ['sh', '-c', 'until nc -z postgres-service 5432; do echo waiting for postgres-service; sleep 2; done;']
+      containers:
+      - name: backend
+        image: disgraceful/3-tier-application:api
+        ports:
+        - containerPort: 80
+        env:
+        - name: ConnectionStrings__Basic3Tier
+          value: "Host=postgres-service;Port=5432;Database=basic3tier;Username=postgres;Password=admin123"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+spec:
+  selector:
+    app: backend
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+  type: LoadBalancer
+
+

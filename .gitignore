@@ -1,0 +1,50 @@
+.DS_Store
+# Compiled binary files
+*.dll
+*.exe
+*.exe.config
+*.exe.config.*
+*.pdb
+*.mdb
+*.ilk
+*.idb
+*.lib
+*.log
+*.cache
+*.csproj.user
+*.suo
+*.ntvs.*
+*.njsproj
+*.vcxproj.user
+# Build results
+bin/
+obj/
+Debug/
+Release/
+
+
+# Visual Studio user-specific files
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
+
+# VS Code workspace settings
+.vscode/
+
+# Rider settings
+.idea/
+
+# Auto-generated files
+*.generated.cs
+Generated\
+
+# Cache files
+.cache/
+*.cache
+*.vspscc
+*.vssscc
+
+# Temporary files
+*.tmp

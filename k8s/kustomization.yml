@@ -1,0 +1,5 @@
+resources:
+- api-deployment.yml
+- db-deployment.yml
+#- ui-deployment.yml
+- storage-class.yml

@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: database
+  labels:
+    app: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: database
+  template:
+    metadata:
+      labels:
+        app: database
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:latest
+        ports:
+        - containerPort: 5432
+        readinessProbe:
+          exec:
+            command:
+            - psql
+            - -U
+            - postgres
+            - -d
+            - basic3tier
+            - -c
+            - "SELECT 1;"
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        env:
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "admin123"
+        - name: POSTGRES_DB
+          value: "basic3tier"
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: postgresdata
+          subPath: postgres
+      volumes:
+      - name: postgresdata
+        persistentVolumeClaim:
+          claimName: postgres-volume-claim
+
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-volume-claim
+  labels:
+    app: database
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: ebs-sc-csi
+  resources:
+    requests:
+      storage: 20Gi
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: database
+
+
+
+
