@@ -18,7 +18,7 @@ spec:
         command: ['sh', '-c', 'until nc -z postgres-service 5432; do echo waiting for postgres-service; sleep 2; done;']
       containers:
       - name: backend
-        image: tassianna/3-tier-app:api
+        image: disgraceful/3-tier-application:api
         ports:
         - containerPort: 80
         env:
