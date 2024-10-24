@@ -7,6 +7,27 @@ on:
         - main
 
 jobs:
+  backend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up .NET Core
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '7.0.x'
+
+      - name: Build Backend
+        run: |
+          cd Basic3TierAPI
+          dotnet build --configuration Release
+        working-directory: ./api
+
+      - name: Publish Backend
+        run: |
+          dotnet publish --configuration Release --output ./publish /p:UseAppHost=false
+        working-directory: ./api
 #   dockerize_push_backend:
 #     runs-on: ubuntu-latest
 #     steps:
@@ -106,4 +127,4 @@ jobs:
       - name: Check Status
         run: kubectl rollout status deployment/frontend-deployment
 
-        
+
