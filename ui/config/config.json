@@ -1,3 +1,3 @@
 {
-    "API_URL": "http://ab117cbc85f7d4fc58db849ee5f57304-888586137.eu-west-2.elb.amazonaws.com:80/"
+    "API_URL": "http://localhost/"
 }

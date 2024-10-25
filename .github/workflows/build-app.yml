@@ -12,6 +12,21 @@ jobs:
 
   backend-build:
     runs-on: ubuntu-latest
+    services:
+      postgres: 
+        image: 'postgres:latest'
+        env:
+          POSTGRES_PASSWORD: admin123
+          POSTGRES_USER: postgres
+          POSTGRES_DB: basic3tier
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d basic3tier"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -23,110 +38,51 @@ jobs:
 
       - name: Build Backend
         run: |
-          cd Basic3TierAPI
-          dotnet build --configuration Release
-        working-directory: ./api
-
-      - name: Publish Backend
-        run: |
-            dotnet publish ./Basic3TierAPI/Basic3TierAPI.csproj --configuration Release --output ./publish /p:UseAppHost=false
+          dotnet build ./Basic3TierAPI/Basic3TierAPI.csproj --configuration Release
         working-directory: ./api
 
 
 #-------------------------------------------------------------------------------
 
-  sonarcloud-analysis:
-    runs-on: ubuntu-latest
-    needs: backend-build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+  # sonarcloud-analysis:
+  #   runs-on: ubuntu-latest
+  #   needs: backend-build
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v3
 
-      - name: Set up .NET Core
-        uses: actions/setup-dotnet@v3
-        with:
-          dotnet-version: '7.0.x'
+  #     - name: Set up .NET Core
+  #       uses: actions/setup-dotnet@v3
+  #       with:
+  #         dotnet-version: '7.0.x'
 
-      - name: SonarQube Scan
-        uses: sonarsource/sonarcloud-github-action@v2
-        with:
-          projectBaseDir: './api' 
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }} 
+  #     - name: SonarQube Scan
+  #       uses: sonarsource/sonarcloud-github-action@v2
+  #       with:
+  #         projectBaseDir: './api' 
+  #       env:
+  #         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  #         SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }} 
 
-      - name: Run Unit Tests
-        run: |
-          dotnet test --logger:trx --results-directory test-results
+  #     - name: Run Unit Tests
+  #       run: |
+  #         dotnet test --logger:trx --results-directory test-results
 
-      - name: Publish Test Results
-        uses: actions/upload-artifact@v3
-        with:
-          name: test-results
-          path: test-results/
-
-#-------------------------------------------------------------------------------
-
-###                           need to fix the Dockerfile
-#   dockerize_push_backend:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: checkout app
-#         uses: actions/checkout@v4
-        
-#       - name: Set up Docker Buildx
-#         uses: docker/setup-buildx-action@v1
-      
-#       - name: Log in to Docker Hub
-#         uses: docker/login-action@v2        
-#         with:
-#           username: ${{ secrets.DOCKER_USERNAME }}
-#           password: ${{ secrets.DOCKER_PASSWORD }}
-      
-#       - name: Build and Push Backend Image for multiple platforms
-#         run: |
-#           docker buildx build --platform linux/amd64,linux/arm64 -t ${{ secrets.DOCKER_USERNAME }}/3-tier-app:api --push .
-#         working-directory: ./api
+  #     - name: Publish Test Results
+  #       uses: actions/upload-artifact@v3
+  #       with:
+  #         name: test-results
+  #         path: test-results/
 
 #-------------------------------------------------------------------------------
 
-  deploy-to-eks:
+
+  dockerize_push_backend:
     runs-on: ubuntu-latest
-    #needs: dockerize_push_backend
     steps:
-
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Update kubeconfig
-        run: |
-          aws eks update-kubeconfig --name 3-tier-app --region ${{ secrets.AWS_REGION }}
-
-      - name: Deploy StorageClass
-        run: kubectl apply -f ./k8s/storage-class.yml
-
-      - name: Deploy DB
-        run: kubectl apply -f ./k8s/db-deployment.yml
-
-      - name: Check Status
-        run: kubectl rollout status deployment/database
-
-      - name: Deploy Backend
-        run: kubectl apply -f ./k8s/api-deployment.yml
+      - name: checkout app
+        uses: actions/checkout@v4
         
-      - name: Check Status
-        run: kubectl rollout status deployment/backend-deployment
-
-      - name: Extract the BE Service External IP
-        run: echo "BACKEND_URL=$(kubectl get services | grep backend-service | awk '{print $4}')" >> $GITHUB_ENV
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
       
@@ -135,35 +91,151 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+      
+      - name: Build and Push docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: ./api
+          tags: ${{ secrets.DOCKER_USERNAME }}/3-tier-application:api-ci
+          push: true
 
-      - name: Output ENV Var incase
-        run: echo ${{ env.BACKEND_URL }}
 
-      - name: Overwrite config.json
-        run: |
-            cat <<EOT > ui/config/config.json
-            { 
-                "API_URL": "http://${{ env.BACKEND_URL }}:80/"
-            }
-            EOT
+#-------------------------------------------------------------------------------
 
-      - name: Cat config.json
-        run: cat ui/config/config.json
-
-      - name: Test build with props 
+  dockerize_push_frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout app
+        uses: actions/checkout@v4
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2        
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      
+      - name: Build and Push docker image
         uses: docker/build-push-action@v2
         with:
           context: ./ui
-          platforms: |
-            linux/amd64
-            linux/arm64
-          tags: ${{ secrets.DOCKER_USERNAME }}/3-tier-app:ui-last
+          tags: ${{ secrets.DOCKER_USERNAME }}/3-tier-application:ui-ci
           push: true
 
-      - name: Deploy Frontend
-        run: kubectl apply -f ./k8s/ui-deployment.yml
+#------------------------requirements: ec2 running with docker installed----------------------------
+
+  aws-ec2:
+    runs-on: ubuntu-latest
+    needs: [dockerize_push_frontend, dockerize_push_backend]
+    steps:
+      - name: Store Key and Sign into EC2 - Install Docker and RUn docker compose up
+        run: |
+          touch ~/3-tier-key.pem
+          echo "${{ secrets.AWS_SSH_PRIVATE_KEY }}" > ~/3-tier-key.pem
+          chmod 600 ~/3-tier-key.pem
+          sudo ssh -i ~/3-tier-key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.AWS_EC2_PUBLIC_IP }} /bin/bash  << EOF
+          git clone https://github.com/Tassianna/3-tier-app.git
+
+          # Add Docker's official GPG key:
+          sudo apt-get update
+          sudo apt-get install ca-certificates curl
+          sudo install -m 0755 -d /etc/apt/keyrings
+          sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+          sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+          # Add the repository to Apt sources:
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+            $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+          sudo apt-get update
+          sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+          cd 3-tier-application
+          sudo docker compose up
+          EOF
+
+
+#-----------------------------------extra deployment with eks!--------------------------------------------
+#------------------------create eks, run csi driver script and then uncommend this job---------------------
+
+  # deploy-to-eks:
+  #   runs-on: ubuntu-latest
+  #   #needs: dockerize_push_backend
+  #   steps:
+
+  #     - name: Checkout code
+  #       uses: actions/checkout@v2
+
+  #     - name: Configure AWS Credentials
+  #       uses: aws-actions/configure-aws-credentials@v1
+  #       with:
+  #         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         aws-region: ${{ secrets.AWS_REGION }}
+
+  #     - name: Update kubeconfig
+  #       run: |
+  #         aws eks update-kubeconfig --name 3-tier-app --region ${{ secrets.AWS_REGION }}
+
+  #     - name: Deploy StorageClass
+  #       run: kubectl apply -f ./k8s/storage-class.yml
+
+  #     - name: Deploy DB
+  #       run: kubectl apply -f ./k8s/db-deployment.yml
+
+  #     - name: Check Status
+  #       run: kubectl rollout status deployment/database
+
+  #     - name: Deploy Backend
+  #       run: kubectl apply -f ./k8s/api-deployment.yml
+        
+  #     - name: Check Status
+  #       run: kubectl rollout status deployment/backend-deployment
+
+  #     - name: Extract the BE Service External IP
+  #       run: echo "BACKEND_URL=$(kubectl get services | grep backend-service | awk '{print $4}')" >> $GITHUB_ENV
+
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v1
       
-      - name: Check Status
-        run: kubectl rollout status deployment/frontend-deployment
+  #     - name: Log in to Docker Hub
+  #       uses: docker/login-action@v2        
+  #       with:
+  #         username: ${{ secrets.DOCKER_USERNAME }}
+  #         password: ${{ secrets.DOCKER_PASSWORD }}
+
+  #     - name: Output ENV Var incase
+  #       run: echo ${{ env.BACKEND_URL }}
+
+  #     - name: Overwrite config.json
+  #       run: |
+  #           cat <<EOT > ui/config/config.json
+  #           { 
+  #               "API_URL": "http://${{ env.BACKEND_URL }}:80/"
+  #           }
+  #           EOT
+
+  #     - name: Cat config.json
+  #       run: cat ui/config/config.json
+
+  #     - name: Test build with props 
+  #       uses: docker/build-push-action@v2
+  #       with:
+  #         context: ./ui
+  #         platforms: |
+  #           linux/amd64
+  #           linux/arm64
+  #         tags: ${{ secrets.DOCKER_USERNAME }}/3-tier-app:ui-last
+  #         push: true
+
+  #     - name: Deploy Frontend
+  #       run: kubectl apply -f ./k8s/ui-deployment.yml
+      
+  #     - name: Check Status
+  #       run: kubectl rollout status deployment/frontend-deployment
 
 

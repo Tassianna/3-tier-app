@@ -15,21 +15,6 @@ services:
     networks:
       - basic3tier
 
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: pgadmin4_container
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@postgres.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "5431:80"
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-    depends_on:
-      - basic-3tier-postgres
-    networks:
-      - basic3tier
-
   # # .NET Core WebAPI Service
   webapi:
     build:
@@ -55,15 +40,12 @@ services:
       - "5001:80"
     networks:
       - basic3tier
-    volumes:
-      - ./ui/configs:/usr/share/nginx/html/configs:ro
     depends_on:
       - webapi
       - basic-3tier-postgres
 
 volumes:
   postgres_data:
-  pgadmin_data:
 
 networks:
   basic3tier:
